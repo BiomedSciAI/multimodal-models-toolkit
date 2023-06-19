@@ -1,6 +1,5 @@
 # multimodal-model-toolkit
 
-
 **multimodal-model-toolkit (MMMT, pronounced mammut)** is a platform for accelerating research and development with data in multiple
 modalities, from data pre-processing, to model evaluation.
 
