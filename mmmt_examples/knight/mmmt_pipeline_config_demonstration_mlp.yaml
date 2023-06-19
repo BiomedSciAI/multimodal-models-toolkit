@@ -1,0 +1,107 @@
+data:
+  - fuse_object: "KNIGHT.static_pipeline"
+    args:
+      data_path: "path-to-knight-data"
+      resize_to:
+        - 70
+        - 256
+        - 256
+
+  - object: "get_splits_str_ids"
+    io:
+      input_key: null
+      output_key: "data_splits"
+    args:
+      pickle_path: "path-to-splits-file"
+
+mlflow:
+  MLFLOW_TRACKING_URI: "path-to-track-with-mlflow"
+  MLFLOW_EXPERIMENT_NAME: "experiment-name"
+
+cache:
+  num_workers: 1
+  restart_cache: True
+  root_dir: "_examples/knight"
+
+modality_encoding_strategy:
+  - object: "ModalityEncoding"
+    args:
+      data.input.clinical.all:
+        model: null
+        use_autoencoder: False
+        output_key: "data.input.encoded_clinical"
+      data.input.img:
+        model_path: "path-to-model"
+        add_feature_names: &add_feature_names True
+        dimensions: 4
+        output_key: "data.input.encoded_img"
+        use_autoencoder: True
+        encoding_layers:
+          - 32
+        batch_size: 3
+        training:
+          pl_trainer_num_epochs: 1
+          pl_trainer_accelerator: "cpu"
+
+
+fusion_strategy:
+  - object: "EncodedUnimodalToConcept"
+    args:
+      use_autoencoders: True
+      add_feature_names: *add_feature_names
+      encoding_layers:
+        - 32
+        - 16
+      batch_size: 3
+      training:
+        pl_trainer_num_epochs: 1
+        pl_trainer_accelerator: "cpu"
+      io:
+        input_keys:
+          - "data.input.encoded_clinical"
+          - "data.input.encoded_img"
+        concept_encoder_model_key: "concept_encoder_model"
+        output_key: "data.input.multimodal"
+
+
+task_strategy:
+  - object: "MultimodalMLP"
+    args:
+      io:
+        input_key: "data.input.multimodal"
+        target_key: &target "data.gt.gt_global.task_1_label"
+        prediction_key: &prediction "model.out"
+
+      model_config:
+        hidden_size:
+          - 100
+          - 20
+        dropout: 0.5
+        add_softmax: True
+        num_classes: 2
+
+      training:
+        model_dir: "model_mlp"
+        batch_size: 3
+        best_epoch_source:
+          mode: "max"
+          monitor: "validation.metrics.auc"
+        train_metrics:
+          key: "auc"
+          object: "MetricAUCROC"
+          args:
+            pred: *prediction
+            target: *target
+        validation_metrics:
+          key: "auc"
+          object: "MetricAUCROC"
+          args:
+            pred: *prediction
+            target: *target
+        pl_trainer_num_epochs: 1
+        pl_trainer_accelerator: "cpu"
+        pl_trainer_devices: 1
+
+      testing:
+        test_results_filename: &test_results_filename "test_results.pickle"
+        evaluation_directory: &evaluation_directory "eval"

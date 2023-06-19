@@ -1,0 +1,160 @@
+data:
+  - fuse_object: "static_pipeline"
+    args:
+      name: "Test dataset"
+  - object: "get_splits"
+    args:
+      name: "splits"
+    io:
+      input_key: null
+      output_key: "data_splits"
+
+mlflow:
+  MLFLOW_TRACKING_URI: null
+  MLFLOW_EXPERIMENT_NAME: null
+
+cache:
+  num_workers: 1
+  restart_cache: True
+  root_dir: "_examples/tests/cache"
+
+modality_encoding_strategy:
+  - object: "ModalityEncoding"
+    args:
+      data.input.raw.modality1:
+        model: null
+        output_key: "data.input.encoded.modality1"
+        use_autoencoder: True
+        encoding_layers:
+          - 128
+          - 64
+        use_pretrained: False
+        batch_size: 5
+        # training config for modality autoencoder. Details in mmmt.data.representation.AutoEncoderTrainer.set_train_config(..)
+        training:
+          model_dir: "model_modality1"
+          pl_trainer_num_epochs: 1
+          pl_trainer_accelerator: "cpu"
+      data.input.raw.modality2:
+        model: null
+        output_key: "data.input.encoded.modality2"
+        use_autoencoder: True
+        encoding_layers:
+          - 32
+          - 32
+        use_pretrained: False
+        batch_size: 5
+        # training config for modality autoencoder. Details in mmmt.data.representation.AutoEncoderTrainer.set_train_config(..)
+        training:
+          model_dir: "model_modality2"
+          pl_trainer_num_epochs: 1
+          pl_trainer_accelerator: "cpu"
+      data.input.raw.modality3:
+        model: null
+        output_key: "data.input.encoded.modality3"
+        use_autoencoder: True
+        encoding_layers:
+          - 64
+          - 64
+        use_pretrained: False
+        batch_size: 5
+        # training config for modality autoencoder. Details in mmmt.data.representation.AutoEncoderTrainer.set_train_config(..)
+        training:
+          model_dir: "model_modality3"
+          pl_trainer_num_epochs: 1
+          pl_trainer_accelerator: "cpu"
+
+
+fusion_strategy:
+  - object: "EncodedUnimodalToConcept"  # early or late
+    args:
+      use_autoencoders: True
+      add_feature_names: False
+      encoding_layers:
+        - 32
+        - &n_layers 16
+      use_pretrained: False
+      batch_size: 5
+      training:
+        model_dir: "model_concept"
+        pl_trainer_num_epochs: 1
+        pl_trainer_accelerator: "cpu"
+      io:
+        concept_encoder_model_key: "concept_encoder_model"
+        input_keys:
+          - "data.input.encoded.modality1"
+          - "data.input.encoded.modality2"
+          - "data.input.encoded.modality3"
+        output_key: "data.input.concatenated"
+  - object: "ConceptToGraph"
+    args:
+      module_identifier: &graph_module "mplex"
+      thresh_q: 0.95
+      io:
+        concept_encoder_model_key: "concept_encoder_model"
+        fused_dataset_key: "fused_dataset"
+        input_key: "data.input.concatenated"
+        output_key: "data.derived_graph"
+  - object: "GraphVisualization"
+    args:
+      selected_samples:
+        graph_train_dataset:
+          - 0
+          - 1
+        graph_validation_dataset: "all"
+        graph_test_dataset: "all"
+      feature_group_sizes:
+        modality1: 64
+        modality2: 32
+        modality3: 64
+      io:
+        file_prefix: "graph_visualization"
+        fused_dataset_key: "fused_dataset"
+task_strategy:
+  - object: "MultimodalGraphModel"
+    args:
+      io:
+        fused_dataset_key: "fused_dataset"
+        input_key: "data.derived_graph"
+        target_key: &target "data.ground_truth"
+        prediction_key: &prediction "model.out"
+
+
+      model_config:
+        graph_model:
+          module_identifier: *graph_module
+          n_layers: *n_layers
+          node_emb_dim: 1  # really needed?
+        head_model:
+          head_hidden_size:
+            - 100
+            - 20
+          dropout: 0.5
+          add_softmax: True
+        num_classes: 2
+
+      training:
+        model_dir: "model_mplex"
+        batch_size: 1
+        best_epoch_source:
+          mode: "max"
+          monitor: "validation.metrics.accuracy"
+        train_metrics:
+          key: "accuracy"
+          object: "MetricAccuracy"
+          args:
+            pred: *prediction
+            target: *target
+        validation_metrics:
+          key: "accuracy"
+          object: "MetricAccuracy"
+          args:
+            pred: *prediction
+            target: *target
+        pl_trainer_num_epochs: 5
+        pl_trainer_accelerator: "cpu"
+        pl_trainer_devices: 1
+
+      testing:
+        test_results_filename: &test_results_filename "test_results.pickle"
+        evaluation_directory: &evaluation_directory "eval"

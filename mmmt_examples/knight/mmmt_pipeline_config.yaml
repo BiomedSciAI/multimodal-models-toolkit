@@ -1,0 +1,91 @@
+data:
+  - fuse_object: "KNIGHT.static_pipeline"
+    args:
+      data_path: "path-to-knight-data"
+      resize_to:
+        - 70
+        - 256
+        - 256
+
+  - object: "get_splits_str_ids"
+    io:
+      input_key: null
+      output_key: "data_splits"
+    args:
+      pickle_path: "path-to-splits-file"
+
+
+mlflow:
+  MLFLOW_TRACKING_URI: "path-to-track-with-mlflow"
+  MLFLOW_EXPERIMENT_NAME: "experiment-name"
+
+cache:
+  num_workers: 1
+  restart_cache: True
+  root_dir: "_examples/knight"
+
+modality_encoding_strategy:
+  - object: "ModalityEncoding"
+    args:
+      data.input.clinical.all:
+          model: null
+          use_autoencoder: False
+          output_key: "data.input.encoded_clinical"
+      data.input.img:
+        model_path: "path-to-model"
+        add_feature_names: &add_feature_names False
+        dimensions: 4
+        output_key: "data.input.encoded_img"
+        use_autoencoder: True
+        encoding_layers:
+          - 128
+          - 64
+        batch_size: 3
+        training:
+          pl_trainer_num_epochs: 1
+          pl_trainer_accelerator: "cpu"
+
+
+fusion_strategy:
+  - object: "EncodedUnimodalToConcept"
+    args:
+      use_autoencoders: True
+      add_feature_names: *add_feature_names
+      encoding_layers:
+        - 32
+        - &n_layers 16
+      batch_size: 3
+      training:
+        pl_trainer_num_epochs: 1
+        pl_trainer_accelerator: "cpu"
+      io:
+        input_keys:
+          - "data.input.encoded_clinical"
+          - "data.input.encoded_img"
+
+  - object: "ConceptToGraph"
+    args:
+      module_identifier: &graph_module "mplex"
+      thresh_q: 0.95
+
+
+task_strategy:
+  - object: "MultimodalGraphModel"
+    args:
+      model_config:
+        graph_model:
+          module_identifier: *graph_module
+          n_layers: *n_layers
+          node_emb_dim: 1
+        head_model:
+          head_hidden_size:
+            - 100
+            - 20
+          dropout: 0.5
+        num_classes: 2
+
+      training:
+        batch_size: 3
+        pl_trainer_num_epochs: 1
+        pl_trainer_accelerator: "cpu"
+        pl_trainer_devices: 1
