@@ -1,0 +1,131 @@
+data:
+  - fuse_object: "static_pipeline"
+    args:
+      name: "Test dataset"
+  - object: "get_splits"
+    args:
+      name: "splits"
+    io:
+      input_key: null
+      output_key: "data_splits"
+
+mlflow:
+  MLFLOW_TRACKING_URI: null
+  MLFLOW_EXPERIMENT_NAME: null
+
+cache:
+  num_workers: 1
+  restart_cache: True
+  root_dir: "_examples/tests/cache"
+
+modality_encoding_strategy:
+  - object: "ModalityEncoding"
+    args:
+      data.input.raw.modality1:
+        model: null
+        output_key: "data.input.encoded.modality1"
+        use_autoencoder: True
+        encoding_layers:
+          - 128
+          - 64
+        use_pretrained: False
+        batch_size: 5
+        # training config for modality autoencoder. Details in mmmt.data.representation.AutoEncoderTrainer.set_train_config(..)
+        training:
+          model_dir: "model_modality1"
+          pl_trainer_num_epochs: 1
+          pl_trainer_accelerator: "cpu"
+      data.input.raw.modality2:
+        model: null
+        output_key: "data.input.encoded.modality2"
+        use_autoencoder: True
+        encoding_layers:
+          - 32
+          - 32
+        use_pretrained: False
+        batch_size: 5
+        # training config for modality autoencoder. Details in mmmt.data.representation.AutoEncoderTrainer.set_train_config(..)
+        training:
+          model_dir: "model_modality2"
+          pl_trainer_num_epochs: 1
+          pl_trainer_accelerator: "cpu"
+      data.input.raw.modality3:
+        model: null
+        output_key: "data.input.encoded.modality3"
+        use_autoencoder: True
+        encoding_layers:
+          - 64
+          - 64
+        use_pretrained: False
+        batch_size: 5
+        # training config for modality autoencoder. Details in mmmt.data.representation.AutoEncoderTrainer.set_train_config(..)
+        training:
+          model_dir: "model_modality3"
+          pl_trainer_num_epochs: 1
+          pl_trainer_accelerator: "cpu"
+
+
+fusion_strategy:
+  - object: "EncodedUnimodalToConcept"  # early or late
+    args:
+      use_autoencoders: True
+      add_feature_names: False
+      encoding_layers:
+        - 32
+        - &n_layers 16
+      use_pretrained: False
+      batch_size: 5
+      training:
+        model_dir: "model_concept"
+        pl_trainer_num_epochs: 1
+        pl_trainer_accelerator: "cpu"
+      io:
+        concept_encoder_model_key: "concept_encoder_model"
+        input_keys:
+          - "data.input.encoded.modality1"
+          - "data.input.encoded.modality2"
+          - "data.input.encoded.modality3"
+        output_key: "data.input.concatenated"
+
+task_strategy:
+  - object: "MultimodalMLP"
+    args:
+      io:
+        input_key: "data.input.concatenated"
+        target_key: &target "data.ground_truth"
+        prediction_key: &prediction "model.out"
+
+
+      model_config:
+        hidden_size:
+          - 100
+          - 20
+        dropout: 0.5
+        add_softmax: True
+        num_classes: 2
+
+      training:
+        model_dir: "model_mlp"
+        batch_size: 1
+        best_epoch_source:
+          mode: "max"
+          monitor: "validation.metrics.accuracy"
+        train_metrics:
+          key: "accuracy"
+          object: "MetricAccuracy"
+          args:
+            pred: *prediction
+            target: *target
+        validation_metrics:
+          key: "accuracy"
+          object: "MetricAccuracy"
+          args:
+            pred: *prediction
+            target: *target
+        pl_trainer_num_epochs: 5
+        pl_trainer_accelerator: "cpu"
+        pl_trainer_devices: 1
+
+      testing:
+        test_results_filename: &test_results_filename "test_results.pickle"
+        evaluation_directory: &evaluation_directory "eval"

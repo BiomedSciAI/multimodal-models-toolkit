@@ -1,0 +1,106 @@
+# configuration approach followed:
+# - whenever possible, prefer pyproject.toml
+# - for configurations insufficiently supported by pyproject.toml, use setup.cfg instead
+# - setup.py discouraged; minimal stub included only for compatibility with legacy tools
+
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mmmt"
+description = "Open-source framework designed to solve multimodal machine learning tasks"
+authors = [
+    { name = "Andrea Giovannini", email = "agv@zurich.ibm.com"},
+    { name = "Antonio Foncubierta Rodriguez", email = "fra@zurich.ibm.com"},
+    { name = "Hongzhi Wang", email = "hongzhiw@us.ibm.com"},
+    { name = "Ken Wong", email = "clwong@us.ibm.com"},
+    { name = "Kevin Thandiackal", email = "kth@zurich.ibm.com"},
+    { name = "Michal Ozery-Flato", email = "ozery@il.ibm.com"},
+    { name = "Moshiko Raboh", email = "moshiko.raboh@ibm.com"},
+    { name = "Niharika D'Souza", email = "Niharika.DSouza@ibm.com"},
+    { name = "Panos Vagenas", email = "pva@zurich.ibm.com"},
+    { name = "Tanveer Syeda-Mahmood", email = "stf@us.ibm.com"},
+]
+readme = "README.md"
+# due to how PEP 440 defines version matching, prefer [incl, excl) definitions like below:
+requires-python = ">=3.8, <3.10"
+dependencies = [
+    "numpy>=1.23.5",
+    "dgl==0.9.1",
+    "rdflib>=6.2.0",
+    "torch>=1.13.1",
+    "scikit-learn>=1.1.3",
+    "matplotlib>=3.6.2",
+    "seaborn>=0.12.1",
+    "mlflow>=2.0.1",
+    "fuse-med-ml[all]>=0.2.9",
+    "networkx==2.8.8",
+    "nxviz>=0.7.4",
+    "graphviz>=0.20.1",
+    "pandas>=1.5.1",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    # tests
+    "pytest",
+    "pytest-cov",
+    # checks
+    "black",
+    "flake8",
+    "pep8-naming",
+    # docs
+    "Sphinx",
+    "sphinx-autodoc-typehints",
+    "sphinx-rtd-theme",
+    "myst-parser",
+    "better-apidoc",
+]
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+
+[tool.semantic_release]
+# for default values check:
+# https://github.com/relekang/python-semantic-release/blob/master/semantic_release/defaults.cfg
+
+version_source = "tag_only"
+branch = "main"
+
+# configure types which should trigger minor and patch version bumps respectively
+# (note that they must be a subset of the configured allowed types):
+parser_angular_allowed_types = "build,chore,ci,docs,feat,fix,perf,style,refactor,test"
+parser_angular_minor_types = "feat"
+parser_angular_patch_types = "fix,perf"
+
+# unstaging the changelog (i.e. command part before &&) is a workaround for
+# https://github.com/relekang/python-semantic-release/issues/381:
+build_command = "git restore --staged CHANGELOG.md && python -m build"
+
+github_token_var="GITHUB_TOKEN"
+
+hvcs_domain="github.ibm.com"
+hvcs_api_domain="github.ibm.com/api/v3"  # see https://ibm-analytics.slack.com/archives/C3SSJ6CSE/p1660313562338669?thread_ts=1660300230.162449&cid=C3SSJ6CSE
+
+[tool.mypy]
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "pytest.*"
+ignore_missing_imports = true
+
+[tool.black]
+line-length = 88
+skip-string-normalization = false
+target-version = ['py37']
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+line_length = 88
+force_to_top = ["rdkit", "scikit-learn"]
