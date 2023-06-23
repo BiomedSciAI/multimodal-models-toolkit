@@ -16,7 +16,7 @@ MMMT has a modular structure and distinguishes the following modules coordinated
 <!-- See `python_requires` in setup.py/cfg -->
 MMMT supports Python 3.8 and 3.9. To install:
 ```sh
-pip install git+ssh://git@github.ibm.com/BiomedSciAI-Innersource/multimodal-model-toolkit
+pip install git+ssh://git@github.com/BiomedSciAI/multimodal-model-toolkit
 ```
 
 If you are contributing to the development of MMMT, see [dev_guide.md](dev_guide.md).
